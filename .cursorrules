@@ -1,0 +1,190 @@
+# Pocket Porker 開発ルール
+
+このプロジェクトはFlutterで開発されるポーカーアプリです。
+以下のアーキテクチャと開発方針に従ってください。
+
+---
+
+## アーキテクチャ
+
+Riverpodを使用したレイヤードアーキテクチャを採用しています。
+
+```
+lib/
+├── application/                              # アプリケーション層
+│   ├── state/                                # アプリ全体共通状態
+│   │   └── 共通の状態.dart
+│   └── usecase/                              # ユースケース
+│       ├── <関心事>/
+│       │   ├── state/                        # 関心事の状態
+│       │   │   └── 関心事_状態.dart
+│       │   └── 関心事_usecase.dart
+│       └── run_usecase_mixin.dart            # ユースケース処理共通化のための mixin
+│
+├── domain/                                   # ドメイン層
+│   ├── <関心事>/
+│   │   ├── entity/                           # 関心事の entity
+│   │   │   ├── 関心事_entity.dart
+│   │   │   └── 関心事_entity.freezed.dart
+│   │   └── 関心事_repository_interface.dart  # 関心事のインターフェース
+│   └── service/                              # 関心事以外のサービス
+│       └── storage_service.dart              # 例: ストレージ関連を扱うサービス
+│
+├── infrastructure/                           # インフラストラクチャー層
+│   └── <関心事>/
+│       ├── dto/                              # 関心事の DTO
+│       │   ├── 関心事_dto.dart
+│       │   ├── 関心事_dto.freezed.dart
+│       │   └── 関心事_dto.g.dart
+│       └── repository/                       # リポジトリ実装
+│           ├── mock_関心事_repository_impl.dart
+│           └── 関心事_repository.dart
+│
+└── presentation/                             # プレゼンテーション層
+    ├── app.dart
+    ├── component/                            # アプリデザイン全般に関する共通部品
+    │   ├── component_1.dart
+    │   ├── component_2.dart
+    │   └── component_3.dart
+    ├── presentation_mixin.dart               # プレゼンテーション層処理共通化のための mixin
+    ├── page/                                 # 関心事に分かれたページ
+    │   └── <関心事>/
+    │       ├── component/                    # 関心事で使用する部品
+    │       │   ├── component_1.dart
+    │       │   ├── component_2.dart
+    │       │   └── component_3.dart
+    │       ├── page_1.dart
+    │       └── page_2.dart
+    ├── theme.dart
+    └── view_utils.dart                       # 画面に関する Utility クラス
+```
+
+### レイヤーの責務
+
+1. **Presentation Layer（プレゼンテーション層）**
+   - UIの描画とユーザーインタラクションの処理
+   - Widgetの定義
+   - Application層のUseCaseを呼び出す
+
+2. **Application Layer（アプリケーション層）**
+   - ユースケースの実装
+   - 状態管理（Riverpod）
+   - Domain層のEntityやRepositoryインターフェースを使用
+
+3. **Domain Layer（ドメイン層）**
+   - ビジネスロジックの中心
+   - Entity（freezedで定義）
+   - Repositoryインターフェースの定義
+   - 他のレイヤーに依存しない
+
+4. **Infrastructure Layer（インフラストラクチャ層）**
+   - Domain層のRepositoryインターフェースの実装
+   - 外部APIやデータベースとの通信
+   - DTO（Data Transfer Object）の定義
+   - モックリポジトリの実装
+
+### 依存関係
+
+- Presentation → Application → Domain ← Infrastructure
+- Domain層は他のレイヤーに依存しない
+- Infrastructure層はDomain層のインターフェースを実装する（依存性逆転）
+
+---
+
+## 状態管理
+
+**Riverpod** を使用します。
+
+- Provider定義は各usecase内に配置
+- 共通状態は `application/state/` に配置
+- 関心事ごとの状態は `application/usecase/<関心事>/state/` に配置
+
+---
+
+## TDD開発フロー
+
+実装時は以下のTDD（テスト駆動開発）の流れに従ってください。
+
+### 開発順序
+
+1. **E2Eテストを作成** → Red（失敗する状態）
+2. **単体テストを作成** → Red（失敗する状態）
+3. **アプリケーションを実装** → Green（単体テストが通る）
+4. **E2Eテストが通ることを確認** → Green
+
+### テスト対象
+
+- **単体テスト**: `domain/` と `application/usecase/` のみ
+  - テストファイルは `test/` ディレクトリに配置
+  - ディレクトリ構造は `lib/` と対応させる
+  
+- **E2Eテスト**: `patrol_test/` ディレクトリに配置
+  - Patrolを使用したE2Eテスト
+
+### テストファイルの命名規則
+
+- 単体テスト: `*_test.dart`
+- E2Eテスト: `*_test.dart`（patrol_test/内）
+
+---
+
+## コード生成
+
+以下のパッケージを使用してコード生成を行います。
+
+### 必要なパッケージ
+
+**dependencies:**
+- `flutter_riverpod` - 状態管理
+- `freezed_annotation` - freezedアノテーション
+- `json_annotation` - JSONシリアライズアノテーション
+
+**dev_dependencies:**
+- `freezed` - イミュータブルなEntity/DTO生成
+- `json_serializable` - JSONシリアライズコード生成
+- `build_runner` - コード生成実行
+
+### コード生成コマンド
+
+```bash
+flutter pub run build_runner build --delete-conflicting-outputs
+```
+
+または監視モード：
+
+```bash
+flutter pub run build_runner watch --delete-conflicting-outputs
+```
+
+---
+
+## ファイル命名規則
+
+- Entity: `<name>_entity.dart`
+- DTO: `<name>_dto.dart`
+- Repository Interface: `<name>_repository_interface.dart`
+- Repository Implementation: `<name>_repository.dart`
+- Mock Repository: `mock_<name>_repository_impl.dart`
+- UseCase: `<name>_usecase.dart`
+- Page: `<name>_page.dart`
+- Component: `<name>_component.dart` または機能を表す名前
+
+---
+
+## コーディング規約
+
+1. **freezed** を使用してEntity/DTOを定義（イミュータブル）
+2. Repositoryは必ず **インターフェースを定義** してから実装
+3. テスト時は **モックリポジトリ** を使用
+4. **日本語コメント** を適宜追加して可読性を向上
+5. ファイルは **単一責任** を意識して分割
+
+---
+
+## 実装時の注意事項
+
+1. 新機能を追加する際は、まずE2Eテストを書くことから始める
+2. ドメインロジックは必ずDomain層に配置し、Presentation層に漏らさない
+3. 外部依存（API、DB等）は必ずInfrastructure層に隔離する
+4. 状態の変更はすべてUseCase経由で行う
+
